@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /events
+Allow: /about
+Allow: /discover
+Allow: /support
+Disallow: /admin
+Disallow: /organizer
+Disallow: /profile
+Disallow: /settings
+Disallow: /my-events
+Disallow: /create-event
+
+Sitemap: https://nex-event-nu.vercel.app/sitemap.xml

@@ -1,0 +1,672 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // GLOBAL SECURITY HELPERS
+    // ==========================================
+
+    // Checks if the client request is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fetches the user profile document from the database
+    function getUserProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Returns true if the authenticated user's account is suspended.
+    // This is always checked BEFORE any role validation.
+    function isSuspended() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        ('suspended' in getUserProfile()) &&
+        getUserProfile().suspended == true;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && !isSuspended() &&
+        (
+          (request.auth.uid == 'YsSzEO8nS3UXcr7bv7X2XJ4BaDH3') ||
+          (request.auth.token.email != null && request.auth.token.email.matches('(?i)^\\s*upadhyayshourya352@gmail\\.com\\s*$')) ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            getUserProfile().role != null &&
+            getUserProfile().role.matches('(?i)^\\s*admin\\s*$')
+          )
+        );
+    }
+
+    // Checks if the user is a verified organizer (and not suspended)
+    function isOrganizer() {
+      return isAuthenticated() && !isSuspended() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserProfile().role != null &&
+        getUserProfile().role.matches('(?i)^\\s*organizer\\s*$');
+    }
+
+    // Checks if the user is a verified faculty member (and not suspended)
+    function isFaculty() {
+      return isAuthenticated() && !isSuspended() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserProfile().role != null &&
+        getUserProfile().role.matches('(?i)^\\s*faculty\\s*$');
+    }
+
+    // Checks if a faculty member is assigned to a specific club
+    function isFacultyAuthorizedForClub(clubId) {
+      return isFaculty() &&
+        'assignedClubIds' in getUserProfile() &&
+        getUserProfile().assignedClubIds.hasAny([clubId]);
+    }
+
+    // ==========================================
+    // 1. USERS COLLECTION
+    // ==========================================
+    match /users/{userId} {
+      // Admins, organizers, and faculty can read profiles; users can read their own profile
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isAdmin() || 
+        isOrganizer() || 
+        isFaculty()
+      );
+      
+      // Users can only create their own profile with default student parameters to prevent role escalation
+      allow create: if isAuthenticated() && request.auth.uid == userId && 
+        (
+          (
+            request.resource.data.role == 'student' &&
+            request.resource.data.verified == false &&
+            request.resource.data.clubId == null &&
+            request.resource.data.clubName == null
+          ) ||
+          (
+            request.resource.data.role == 'admin' &&
+            request.resource.data.verified == true &&
+            request.auth.token.email.matches('(?i)^\\s*upadhyayshourya352@gmail\\.com\\s*$')
+          )
+        );
+
+      // Admins can change any field; users can update their own details but cannot modify roles, verified state, or club mappings unless redeeming a valid activation token
+      allow update: if isAuthenticated() && (
+        isAdmin() || (
+          request.auth.uid == userId &&
+          request.resource.data.uid == resource.data.uid &&
+          (
+            // Scenario A: Standard profile updates (role, verified status, club details, and authorityVersion must remain unchanged)
+            (
+              request.resource.data.role == resource.data.role &&
+              request.resource.data.verified == resource.data.verified &&
+              request.resource.data.clubId == resource.data.clubId &&
+              request.resource.data.clubName == resource.data.clubName &&
+              (!('assignedClubIds' in resource.data) ? !('assignedClubIds' in request.resource.data) : request.resource.data.assignedClubIds == resource.data.assignedClubIds) &&
+              (!('authorityVersion' in resource.data) ? !('authorityVersion' in request.resource.data) : request.resource.data.authorityVersion == resource.data.authorityVersion)
+            ) ||
+            // Scenario B: User redeeming an organizer invitation token
+            (
+              request.resource.data.role == 'organizer' &&
+              request.resource.data.verified == true &&
+              request.resource.data.appliedInviteId != null &&
+              exists(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)) &&
+              get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data.used == false &&
+              (!('usedBy' in get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data) || get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data.usedBy == null) &&
+              (!('status' in get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data) || get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data.status == 'pending') &&
+              get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data.clubId == request.resource.data.clubId &&
+              get(/databases/$(database)/documents/organizerInvites/$(request.resource.data.appliedInviteId)).data.clubName == request.resource.data.clubName &&
+              !('assignedClubIds' in request.resource.data) &&
+              !('authorityVersion' in request.resource.data)
+            ) ||
+            // Scenario C: Permanent Admin bootstrap override
+            (
+              request.resource.data.role == 'admin' &&
+              request.resource.data.verified == true &&
+              request.auth.token.email.matches('(?i)^\\s*upadhyayshourya352@gmail\\.com\\s*$')
+            )
+          )
+        )
+      ) && (
+        // System Owner Protection rules
+        (userId != 'YsSzEO8nS3UXcr7bv7X2XJ4BaDH3' && !(resource.data.email != null && resource.data.email.matches('(?i)^\\s*upadhyayshourya352@gmail\\.com\\s*$'))) ||
+        (
+          request.resource.data.email == 'upadhyayshourya352@gmail.com' &&
+          request.resource.data.uid == 'YsSzEO8nS3UXcr7bv7X2XJ4BaDH3' &&
+          request.resource.data.role == 'admin' &&
+          request.resource.data.verified == true &&
+          (!('suspended' in request.resource.data) || request.resource.data.suspended == false)
+        )
+      );
+
+      // Only administrators can delete user accounts, but the bootstrap owner account is protected from deletion
+      allow delete: if isAdmin() &&
+        userId != 'YsSzEO8nS3UXcr7bv7X2XJ4BaDH3' &&
+        !(resource.data.email != null && resource.data.email.matches('(?i)^\\s*upadhyayshourya352@gmail\\.com\\s*$'));
+    }
+
+    // ==========================================
+    // 2. EVENTS COLLECTION
+    // ==========================================
+    match /events/{eventId} {
+      // Anyone (including anonymous guests) can read/discover events
+      allow read: if true;
+
+      // Administrators can write anything. Organizers can create and manage their own events. Students are blocked.
+      allow create: if isAdmin() || (
+        isOrganizer() &&
+        request.resource.data.creatorId == request.auth.uid &&
+        request.resource.data.role == getUserProfile().role &&
+        request.resource.data.clubId == getUserProfile().clubId &&
+        request.resource.data.clubName == getUserProfile().clubName
+      );
+
+      allow update: if isAdmin() || (
+        isOrganizer() &&
+        resource.data.creatorId == request.auth.uid &&
+        request.resource.data.creatorId == resource.data.creatorId &&
+        request.resource.data.creatorName == resource.data.creatorName &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.clubId == resource.data.clubId &&
+        request.resource.data.clubName == resource.data.clubName &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (
+          request.resource.data.status == resource.data.status ||
+          (resource.data.status == 'draft' && (request.resource.data.status == 'published' || request.resource.data.status == 'deleted')) ||
+          (
+            (resource.data.status == 'published' || resource.data.status == 'open' || resource.data.status == 'closed' || resource.data.status == 'live') &&
+            (request.resource.data.status == 'archived' || request.resource.data.status == 'cancelled' || request.resource.data.status == 'completed' || request.resource.data.status == 'deleted')
+          )
+        ) &&
+        (
+          // Lock prevention: if locked or registrations started, clubHours config cannot be modified.
+          !(resource.data.clubHoursLocked == true || (resource.data.registeredCount != null && resource.data.registeredCount > 0)) ||
+          (
+            (!('clubHours' in resource.data) ? !('clubHours' in request.resource.data) : request.resource.data.clubHours == resource.data.clubHours) &&
+            (!('clubHoursLocked' in resource.data) ? !('clubHoursLocked' in request.resource.data) : request.resource.data.clubHoursLocked == resource.data.clubHoursLocked) &&
+            (!('clubHoursLockedAt' in resource.data) ? !('clubHoursLockedAt' in request.resource.data) : request.resource.data.clubHoursLockedAt == resource.data.clubHoursLockedAt)
+          )
+        ) &&
+        (
+          // Cannot unlock once locked
+          !(resource.data.clubHoursLocked == true && request.resource.data.clubHoursLocked != true)
+        )
+      ) || (
+        // Registration count update path — securely allows students to atomically increment/decrement
+        // registeredCount, update timestamps, lock club hours on first registration, and close status when full.
+        isAuthenticated() && !isSuspended() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registeredCount', 'updatedAt', 'status', 'clubHoursLocked', 'clubHoursLockedAt']) &&
+        (
+          // CASE A: Registration increment
+          (
+            request.resource.data.registeredCount == resource.data.registeredCount + 1 &&
+            (
+              request.resource.data.clubHoursLocked == resource.data.clubHoursLocked ||
+              (
+                resource.data.registeredCount == 0 &&
+                request.resource.data.clubHoursLocked == true &&
+                ('clubHours' in resource.data) && resource.data.clubHours.enabled == true
+              )
+            ) &&
+            (
+              request.resource.data.status == resource.data.status ||
+              (
+                request.resource.data.status == 'closed' &&
+                request.resource.data.registeredCount >= resource.data.capacity
+              )
+            )
+          ) ||
+          // CASE B: Cancellation decrement
+          (
+            request.resource.data.registeredCount == resource.data.registeredCount - 1 &&
+            request.resource.data.clubHoursLocked == resource.data.clubHoursLocked &&
+            (
+              request.resource.data.status == resource.data.status ||
+              (
+                request.resource.data.status == 'published' &&
+                request.resource.data.registeredCount < resource.data.capacity
+              )
+            )
+          )
+        )
+      );
+
+      allow delete: if isAdmin() || (
+        isOrganizer() &&
+        resource.data.creatorId == request.auth.uid
+      );
+    }
+
+    // ==========================================
+    // 2b. CLUB HOUR SUBMISSIONS COLLECTION
+    // ==========================================
+    match /clubHourSubmissions/{submissionId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isOrganizer() && (resource == null || resource.data.clubId == getUserProfile().clubId || resource.data.organizerId == request.auth.uid)) ||
+        (isFaculty() && resource != null && 'assignedClubIds' in getUserProfile() && getUserProfile().assignedClubIds.hasAny([resource.data.clubId]))
+      );
+
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          isOrganizer() &&
+          request.resource.data.organizerId == request.auth.uid &&
+          request.resource.data.clubId == getUserProfile().clubId &&
+          request.resource.data.status == 'draft'
+        )
+      );
+
+      allow update: if isAuthenticated() && (
+        isAdmin() || (
+          isOrganizer() &&
+          resource.data.organizerId == request.auth.uid &&
+          (resource.data.status == 'draft' || resource.data.status == 'returned') &&
+          (
+            (request.resource.data.status == 'pending_faculty' && request.resource.data.submittedBy == request.auth.uid) ||
+            request.resource.data.status == 'draft' ||
+            request.resource.data.status == 'returned'
+          ) &&
+          request.resource.data.organizerId == resource.data.organizerId &&
+          request.resource.data.clubId == resource.data.clubId &&
+          request.resource.data.eventId == resource.data.eventId
+        ) || (
+          isFaculty() &&
+          'assignedClubIds' in getUserProfile() &&
+          getUserProfile().assignedClubIds.hasAny([resource.data.clubId]) &&
+          resource.data.status == 'pending_faculty' &&
+          (
+            request.resource.data.status == 'approved' ||
+            request.resource.data.status == 'returned'
+          ) &&
+          request.resource.data.organizerId == resource.data.organizerId &&
+          request.resource.data.clubId == resource.data.clubId &&
+          request.resource.data.eventId == resource.data.eventId
+        )
+      );
+
+      allow delete: if isAdmin();
+
+      match /allocations/{allocationId} {
+        allow read: if isAuthenticated() && (
+          isAdmin() ||
+          (
+            isOrganizer() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.organizerId == request.auth.uid
+            )
+          ) ||
+          (
+            isFaculty() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              'assignedClubIds' in getUserProfile() &&
+              getUserProfile().assignedClubIds.hasAny([get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.clubId])
+            )
+          )
+        );
+
+        allow create, update: if isAuthenticated() && (
+          isAdmin() || (
+            isOrganizer() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.status == 'draft' ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.status == 'returned'
+            ) &&
+            (!exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) || get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.organizerId == request.auth.uid) &&
+            exists(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)) &&
+            (
+              get(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)).data.checkedIn == true ||
+              get(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)).data.attendanceStatus == 'present'
+            ) &&
+            get(/databases/$(database)/documents/registrations/$(request.resource.data.registrationId)).data.status == 'confirmed'
+          )
+        );
+
+        allow delete: if isAuthenticated() && (
+          isAdmin() || (
+            isOrganizer() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.status == 'draft' ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.status == 'returned'
+            ) &&
+            (!exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) || get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.organizerId == request.auth.uid)
+          )
+        );
+      }
+
+      match /audit/{auditId} {
+        allow read: if isAuthenticated() && (
+          isAdmin() ||
+          (
+            isOrganizer() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.organizerId == request.auth.uid
+            )
+          ) ||
+          (
+            isFaculty() &&
+            (
+              !exists(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)) ||
+              'assignedClubIds' in getUserProfile() &&
+              getUserProfile().assignedClubIds.hasAny([get(/databases/$(database)/documents/clubHourSubmissions/$(submissionId)).data.clubId])
+            )
+          )
+        );
+
+        allow create: if isAuthenticated() && (
+          isAdmin() ||
+          (
+            isOrganizer() &&
+            request.resource.data.actorId == request.auth.uid &&
+            request.resource.data.actorRole == 'organizer' &&
+            (request.resource.data.action == 'submitted' || request.resource.data.action == 'resubmitted')
+          ) ||
+          (
+            isFaculty() &&
+            request.resource.data.actorId == request.auth.uid &&
+            request.resource.data.actorRole == 'faculty' &&
+            (request.resource.data.action == 'approved' || request.resource.data.action == 'returned')
+          )
+        );
+
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ==========================================
+    // 2c. CLUB HOUR LEDGER COLLECTION
+    // ==========================================
+    match /clubHourLedger/{ledgerId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource == null ||
+        (resource != null && (
+          (resource.data.studentId == request.auth.uid) ||
+          (isFaculty() && 'assignedClubIds' in getUserProfile() && getUserProfile().assignedClubIds.hasAny([resource.data.clubId])) ||
+          (isOrganizer() && resource.data.clubId == getUserProfile().clubId)
+        ))
+      );
+
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          isFaculty() &&
+          ledgerId == request.resource.data.studentId + '_' + request.resource.data.eventId + '_participation' &&
+          'assignedClubIds' in getUserProfile() &&
+          getUserProfile().assignedClubIds.hasAny([request.resource.data.clubId]) &&
+          exists(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)) &&
+          get(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)).data.status == 'pending_faculty' &&
+          get(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)).data.clubId == request.resource.data.clubId &&
+          get(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)).data.eventId == request.resource.data.eventId &&
+          exists(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)/allocations/$(request.resource.data.sourceAllocationId)) &&
+          get(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)/allocations/$(request.resource.data.sourceAllocationId)).data.proposedHours == request.resource.data.hours &&
+          get(/databases/$(database)/documents/clubHourSubmissions/$(request.resource.data.sourceSubmissionId)/allocations/$(request.resource.data.sourceAllocationId)).data.studentId == request.resource.data.studentId &&
+          exists(/databases/$(database)/documents/registrations/$(request.resource.data.sourceAllocationId)) &&
+          get(/databases/$(database)/documents/registrations/$(request.resource.data.sourceAllocationId)).data.status == 'confirmed' &&
+          (
+            get(/databases/$(database)/documents/registrations/$(request.resource.data.sourceAllocationId)).data.checkedIn == true ||
+            get(/databases/$(database)/documents/registrations/$(request.resource.data.sourceAllocationId)).data.attendanceStatus == 'present'
+          )
+        )
+      );
+
+      allow update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // 2d. ALLOCATIONS COLLECTION GROUP
+    // ==========================================
+    match /{path=**}/allocations/{allocationId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.studentId == request.auth.uid
+      );
+    }
+
+    // ==========================================
+    // 2e. STUDENT CREDIT STATUS COLLECTION
+    // ==========================================
+    match /studentCreditStatus/{statusId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.studentId == request.auth.uid
+      );
+
+      allow create, update: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          isOrganizer() &&
+          request.resource.data.studentId != null &&
+          request.resource.data.eventId != null &&
+          (
+            get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.creatorId == request.auth.uid ||
+            get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.clubId == getUserProfile().clubId
+          )
+        ) ||
+        (
+          isFaculty() &&
+          request.resource.data.eventId != null &&
+          'assignedClubIds' in getUserProfile() &&
+          getUserProfile().assignedClubIds.hasAny([request.resource.data.clubId])
+        )
+      );
+
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          isOrganizer() &&
+          resource != null &&
+          (
+            get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.creatorId == request.auth.uid ||
+            get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.clubId == getUserProfile().clubId
+          )
+        ) ||
+        (
+          isFaculty() &&
+          resource != null &&
+          'assignedClubIds' in getUserProfile() &&
+          getUserProfile().assignedClubIds.hasAny([resource.data.clubId])
+        )
+      );
+    }
+
+    // ==========================================
+    // 3. REGISTRATIONS COLLECTION
+    // ==========================================
+    match /registrations/{registrationId} {
+      // Registrants can read their own; Admins can read all; 
+      // Organizers can read registrations ONLY if they created the linked event.
+      // Registrants can read their own; Admins can read all; 
+      // Organizers can read registrations if they created the linked event (via cheaper local snapshot check or eventCreator check).
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource == null ||
+        (resource != null && (
+          resource.data.userId == request.auth.uid || 
+          (isOrganizer() && (resource.data.organizerId == request.auth.uid || get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.creatorId == request.auth.uid)) ||
+          (isFaculty() && 'assignedClubIds' in getUserProfile() && getUserProfile().assignedClubIds.hasAny([resource.data.clubId]))
+        ))
+      );
+
+      // Authenticated users can create registrations for themselves.
+      // Enforce registration ID constraint (uid_eventId) to natively prevent duplicate bookings.
+      // Organizers cannot register for their own events.
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        registrationId == request.auth.uid + '_' + request.resource.data.eventId &&
+        (!isOrganizer() || get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.creatorId != request.auth.uid);
+
+      // Registration update rules enforce strict field-level restrictions.
+      // Admins retain full write access. All other roles are limited to explicit field sets.
+      allow update: if isAuthenticated() && (
+        isAdmin() || (
+          // Student cancellation flow — strictly limited to status + updatedAt.
+          // Students can NEVER modify attendance, organizer, event ownership, or identity fields.
+          request.auth.uid == resource.data.userId &&
+          !isSuspended() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+          request.resource.data.status == 'cancelled'
+        ) || (
+          // Organizer attendance check-in — strictly limited to attendance fields only.
+          isOrganizer() &&
+          get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.creatorId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedIn', 'checkedInAt', 'checkedInBy', 'attendanceStatus', 'updatedAt']) &&
+          request.resource.data.checkedIn == true &&
+          request.resource.data.checkedInBy == request.auth.uid
+        ) || (
+          // Organizer cancellation of a registrant — limited to status + updatedAt.
+          isOrganizer() &&
+          get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.creatorId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+          request.resource.data.status == 'cancelled'
+        )
+      );
+
+      // Users can only delete their own cancelled registrations; event creators (organizers) can only delete cancelled registrations.
+      // Admins retain unrestricted deletion permissions.
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (resource.data.status == 'cancelled' && (
+          request.auth.uid == resource.data.userId || 
+          (isOrganizer() && get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.creatorId == request.auth.uid)
+        ))
+      );
+    }
+
+    // ==========================================
+    // 4. CLUBS COLLECTION
+    // ==========================================
+    match /clubs/{clubId} {
+      // Anyone can discover/read academic club registries
+      allow read: if true;
+      
+      // Only administrators can manage clubs
+      allow write: if isAdmin();
+    }
+
+    // ==========================================
+    // 5. INVITATIONS COLLECTION
+    // ==========================================
+    match /organizerInvites/{inviteId} {
+      // Admins can read all invitations. Authenticated users can query for activation checks.
+      allow read: if isAuthenticated();
+
+      // Only administrators can create or revoke invites
+      allow create, delete: if isAdmin();
+
+      // Allow users to update an invite ONLY when redeeming it (setting used = true, status = 'consumed' and signing their uid)
+      allow update: if isAuthenticated() && (
+        !resource.data.used &&
+        (!('status' in resource.data) || resource.data.status != 'consumed') &&
+        (
+          isAdmin() || (
+            request.resource.data.used == true &&
+            request.resource.data.status == 'consumed' &&
+            request.resource.data.usedBy == request.auth.uid &&
+            request.resource.data.usedAt != null &&
+            request.resource.data.token == resource.data.token &&
+            request.resource.data.expiresAt == resource.data.expiresAt &&
+            request.resource.data.clubId == resource.data.clubId &&
+            request.resource.data.clubName == resource.data.clubName &&
+            request.resource.data.role == resource.data.role
+          )
+        )
+      );
+    }
+
+    // ==========================================
+    // 6. ADMIN LOGS COLLECTION
+    // ==========================================
+    match /adminLogs/{logId} {
+      // Only administrators can read or write log entries
+      allow read, write: if isAdmin();
+    }
+
+    // ==========================================
+    // 7. NOTIFICATIONS COLLECTION
+    // ==========================================
+    match /notifications/{notifId} {
+      // Users can only access their own inbox notifications or global ones
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId ||
+        resource.data.target == 'all_users' ||
+        isAdmin()
+      );
+
+      // Role-based notification creation:
+      // - Admins: any notification including global broadcasts.
+      // - Organizers: event publication global broadcasts (type=event_published)
+      //   or user-specific notifications (no impersonation).
+      // - All others: self-addressed only, no global broadcasts.
+      allow create: if isAuthenticated() && !isSuspended() && (
+        isAdmin() || (
+          isOrganizer() && (
+            // Organizers may broadcast event publication notifications
+            (request.resource.data.target == 'all_users' && request.resource.data.type == 'event_published') ||
+            // Or create user-specific notifications (e.g. registration confirmation)
+            (request.resource.data.target != 'all_users' && request.resource.data.userId != null)
+          )
+        ) || (
+          // Students and other authenticated users: self-addressed only, no broadcasts
+          !isOrganizer() && !isAdmin() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.target != 'all_users'
+        )
+      );
+
+      // Users may only mark their own notifications as read.
+      // affectedKeys() prevents mutation of notification content (title, message, type, etc.)
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId ||
+        resource.data.target == 'all_users'
+      ) &&
+      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // ==========================================
+    // 7.b NOTIFICATION READS COLLECTION
+    // ==========================================
+    match /notificationReads/{readId} {
+      // Users can only read and write their own read-state documents
+      allow read, write: if isAuthenticated() && readId.matches('^' + request.auth.uid + '_.*');
+    }
+
+    // ==========================================
+    // 8. ACTIVITIES COLLECTION
+    // ==========================================
+    match /activities/{activityId} {
+      // Users and admins can read activity logs
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      
+      // Users can only write logs pointing to their own identity
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      allow update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // 9. ROLE AUDIT COLLECTION
+    // ==========================================
+    match /roleAudit/{auditId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated() && isAdmin() &&
+        request.resource.data.keys().hasAll(['action', 'targetUserId', 'actorId', 'previousRole', 'newRole', 'previousAssignedClubIds', 'newAssignedClubIds', 'createdAt']) &&
+        request.resource.data.keys().size() == 8 &&
+        request.resource.data.action in ['faculty_activated', 'faculty_scope_updated', 'faculty_revoked'] &&
+        request.resource.data.targetUserId is string && request.resource.data.targetUserId != "" &&
+        request.resource.data.actorId == request.auth.uid &&
+        request.resource.data.previousRole in ['student', 'organizer', 'faculty', 'admin'] &&
+        request.resource.data.newRole in ['student', 'organizer', 'faculty', 'admin'] &&
+        request.resource.data.previousAssignedClubIds is list &&
+        request.resource.data.newAssignedClubIds is list &&
+        request.resource.data.createdAt is timestamp;
+      
+      // Update and delete are strictly denied
+      allow update, delete: if false;
+    }
+  }
+}

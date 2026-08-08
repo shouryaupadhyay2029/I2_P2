@@ -1,0 +1,11 @@
+# NexEvent
+
+NexEvent is a campus event discovery and management platform designed with an architectural and editorial visual language.
+
+## Public Routes
+
+- `/`: Landing page, featured events, FAQ, statistics, and testimonials.
+- `/events`: Directory of upcoming and past campus events.
+- `/about`: Details about the design philosophy and platform.
+- `/discover`: Discover premium events.
+- `/support`: Help resources for students and organizers.

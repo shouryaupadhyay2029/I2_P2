@@ -1,0 +1,436 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    color: rgba(255, 255, 255, 0.82);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    background-color: #050505; /* Deep black matte */
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: rgba(255, 255, 255, 0.96);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    letter-spacing: -0.03em;
+    font-weight: 400;
+    transition: filter 0.4s cubic-bezier(0.16, 1, 0.3, 1), color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  h1:hover, h2:hover, h3:hover, h4:hover {
+    filter: brightness(1.05);
+  }
+
+  /* Custom Typography System */
+  .text-display-xl {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(3rem, 7.5vw, 5.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    font-weight: 400;
+  }
+
+  .text-display-l {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(2.2rem, 5.2vw, 4.2rem);
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    font-weight: 400;
+  }
+
+  .text-display-m {
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: clamp(1.4rem, 3vw, 1.95rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+
+  .text-body-l {
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: clamp(1.025rem, 1.4vw, 1.2rem);
+    line-height: 1.65;
+    letter-spacing: -0.01em;
+    font-weight: 300;
+    max-width: 65ch;
+  }
+
+  .text-body-s {
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    letter-spacing: 0em;
+    font-weight: 400;
+  }
+
+  .text-micro {
+    font-family: "Space Mono", monospace;
+    font-size: 0.58rem;
+    line-height: 1.4;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    font-weight: 500;
+    opacity: 0.60; /* improved contrast */
+    transition: opacity 0.4s ease, color 0.4s ease;
+  }
+
+  /* Custom Scrollbar Styles */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #050505;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15); /* Matte monochrome gray */
+    border-radius: 4px;
+    border: 2px solid #050505;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3); /* Brighter gray */
+  }
+
+  /* Firefox Scrollbar support */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) #050505;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, rgba(255,255,255,0.015) 25%, rgba(255,255,255,0.045) 50%, rgba(255,255,255,0.015) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite linear;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+img {
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), filter 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+img[loading] {
+  opacity: 0;
+  filter: blur(8px) brightness(0.8);
+}
+img.loaded {
+  opacity: 1;
+  filter: blur(0) brightness(1);
+}
+
+/* Typography contrast corrections */
+.text-white\/45,
+.text-white\/40,
+.text-white\/35 {
+  color: rgba(255, 255, 255, 0.47) !important;
+}
+
+.text-white\/30,
+.text-white\/25,
+.text-white\/20,
+.text-white\/15,
+.text-white\/10 {
+  color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.text-secondary {
+  color: rgba(255, 255, 255, 0.60) !important;
+}
+
+.text-muted {
+  color: rgba(255, 255, 255, 0.47) !important;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+}
+.scrollbar-none {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+.scroll-container {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: auto !important;
+}
+
+@media (max-width: 768px) {
+  .scroll-container::-webkit-scrollbar {
+    width: 3px !important;
+    height: 3px !important;
+  }
+}
+
+/* Custom search placeholder translation */
+.search-input-premium::placeholder {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(0);
+}
+.search-input-premium:focus::placeholder {
+  transform: translateX(-6px);
+  opacity: 0.15;
+}
+
+/* Technical outline dash scrolling */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Custom activity feed scrollbar */
+.scrollbar-custom::-webkit-scrollbar {
+  width: 2px;
+}
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0px;
+  border: none;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+}
+
+/* Cream Editorial Light Theme styling overrides globally */
+.landing-light-theme {
+  background-color: #F5F3EE !important;
+  color: #111111 !important;
+}
+
+/* Headings: large, section, and card titles */
+.landing-light-theme h1,
+.landing-light-theme h2,
+.landing-light-theme h3,
+.landing-light-theme h4,
+.landing-light-theme h5,
+.landing-light-theme h6,
+.landing-light-theme .text-primary,
+.landing-light-theme .text-white,
+.landing-light-theme .text-zinc-100,
+.landing-light-theme .text-zinc-200,
+.landing-light-theme .text-zinc-300 {
+  color: #111111 !important;
+}
+
+/* Body text & main paragraphs */
+.landing-light-theme p:not([class*="text-"]),
+.landing-light-theme .text-body-l,
+.landing-light-theme .text-body-s,
+.landing-light-theme .text-secondary,
+.landing-light-theme .text-zinc-400,
+.landing-light-theme .text-white\/80 {
+  color: #444444 !important;
+}
+
+/* Descriptions & subtexts */
+.landing-light-theme .text-muted,
+.landing-light-theme .text-zinc-500,
+.landing-light-theme .text-white\/60,
+.landing-light-theme .text-white\/70,
+.landing-light-theme .text-white\/50 {
+  color: #666666 !important;
+}
+
+/* Captions, decorative, grid labels, and disabled text */
+.landing-light-theme .text-white\/40,
+.landing-light-theme .text-white\/35,
+.landing-light-theme .text-white\/30,
+.landing-light-theme .text-white\/20,
+.landing-light-theme .text-zinc-600,
+.landing-light-theme .text-micro {
+  color: #8E8E8E !important;
+  opacity: 1 !important;
+}
+
+/* Standard Borders: replace translucent white with solid transparent black */
+.landing-light-theme .border-border,
+.landing-light-theme [class*="border-white"],
+.landing-light-theme [class*="border-white\/"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Strong Borders */
+.landing-light-theme .border-strong,
+.landing-light-theme .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.14) !important;
+}
+
+.landing-light-theme .divide-white\/5 > * + *,
+.landing-light-theme .divide-white\/10 > * + * {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Remap dark card/panel backgrounds to clean white surfaces */
+.landing-light-theme .bg-background,
+.landing-light-theme .bg-\[\#0a0a0a\],
+.landing-light-theme .bg-\[\#0c0c0c\],
+.landing-light-theme .bg-\[\#0d0d0d\],
+.landing-light-theme .bg-\[\#0d0d0d\]\/90,
+.landing-light-theme .bg-\[\#0e0e0e\],
+.landing-light-theme .bg-\[\#141414\],
+.landing-light-theme .bg-\[\#141414\]\/95,
+.landing-light-theme .bg-\[\#141414\]\/90,
+.landing-light-theme .bg-\[\#111\],
+.landing-light-theme .bg-\[\#121212\] {
+  background-color: #FFFFFF !important;
+}
+
+.landing-light-theme .bg-surface-secondary {
+  background-color: #FFFFFF !important;
+}
+.landing-light-theme .bg-surface-elevated {
+  background-color: #FCFBF8 !important;
+}
+
+/* Translucent white backgrounds to dark hover overlays */
+.landing-light-theme .bg-white\/5,
+.landing-light-theme .bg-white\/10,
+.landing-light-theme .bg-white\/\[0\.01\],
+.landing-light-theme .bg-white\/\[0\.02\],
+.landing-light-theme .bg-white\/\[0\.03\],
+.landing-light-theme .hover\:bg-white\/\[0\.02\]:hover,
+.landing-light-theme .hover\:bg-white\/\[0\.03\]:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Icons coloring */
+.landing-light-theme svg {
+  stroke: #222222 !important;
+}
+.landing-light-theme svg rect,
+.landing-light-theme svg line,
+.landing-light-theme svg path,
+.landing-light-theme svg circle {
+  stroke: #222222 !important;
+}
+
+.landing-light-theme svg.text-white,
+.landing-light-theme svg.text-white\/40,
+.landing-light-theme svg.text-white\/60 {
+  color: #222222 !important;
+}
+
+/* Primary Button: Black background, white text */
+.landing-light-theme button.bg-white,
+.landing-light-theme .button-primary {
+  background-color: #111111 !important;
+  color: #FFFFFF !important;
+  border-color: #111111 !important;
+}
+
+.landing-light-theme button.bg-white:hover,
+.landing-light-theme .button-primary:hover {
+  background-color: rgba(17, 17, 17, 0.95) !important;
+  color: #FFFFFF !important;
+}
+
+/* Secondary Button: White background, black text, 1px border */
+.landing-light-theme button[class*="border-white"],
+.landing-light-theme button.border-white\/10,
+.landing-light-theme button.border-white\/20,
+.landing-light-theme .button-secondary {
+  background-color: #FFFFFF !important;
+  color: #111111 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.landing-light-theme button[class*="border-white"]:hover,
+.landing-light-theme button.border-white\/10:hover,
+.landing-light-theme button.border-white\/20:hover,
+.landing-light-theme .button-secondary:hover {
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  color: #111111 !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.landing-light-theme button[class*="text-white"] {
+  color: #444444 !important;
+}
+
+.landing-light-theme button[class*="text-white"]:hover {
+  color: #111111 !important;
+}
+
+/* Dialog & Modals text visibility */
+.landing-light-theme [role="dialog"] .text-white,
+.landing-light-theme [role="dialog"] h2,
+.landing-light-theme [role="dialog"] h3 {
+  color: #111111 !important;
+}
+
+/* Inputs, textareas, and option dropdown fields styling */
+.landing-light-theme input,
+.landing-light-theme select,
+.landing-light-theme textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #111111 !important;
+}
+.landing-light-theme input::placeholder,
+.landing-light-theme textarea::placeholder {
+  color: #888888 !important;
+}
+.landing-light-theme input:focus,
+.landing-light-theme select:focus,
+.landing-light-theme textarea:focus {
+  border-color: #111111 !important;
+  background-color: #FFFFFF !important;
+}
+
+/* Premium card shadow lift */
+.landing-light-theme .card-premium {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05) !important;
+}
+
+/* Grid lines and background watermark */
+.landing-light-theme .grid-line {
+  opacity: 0.04 !important; /* 4% opacity */
+}
+
+/* Large watermark text in background (e.g. Footer and others) */
+.landing-light-theme .font-display.text-white\/\[0\.015\],
+.landing-light-theme .text-white\/\[0\.015\] {
+  color: rgba(0, 0, 0, 0.05) !important; /* 5% opacity black */
+}
