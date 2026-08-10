@@ -24,7 +24,11 @@ export const NavLink = ({ to, children, className, onClick, index }) => {
   const isActive = location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
   const [isHovered, setIsHovered] = useState(false);
   const shouldReduceMotion = useReducedMotion();
-  const isHome = location.pathname === '/';
+  const isLight = location.pathname === '/' || 
+                  location.pathname.startsWith('/organizer') || 
+                  location.pathname === '/events' || 
+                  location.pathname === '/my-events' || 
+                  location.pathname === '/create-event';
 
   // Gentle 5px magnetic pull on the text
   const { ref, x, y, handlers } = useMagnet({ maxDelta: 5, damping: 32, stiffness: 320 });
@@ -50,7 +54,7 @@ export const NavLink = ({ to, children, className, onClick, index }) => {
         style={{ x, y }}
         {...handlers}
         animate={{
-          color: isHome
+          color: isLight
             ? (isActive
               ? "rgba(26, 26, 26, 1)"
               : isHovered
@@ -76,7 +80,7 @@ export const NavLink = ({ to, children, className, onClick, index }) => {
           layoutId={`nav-indicator-${indicatorId}`}
           className={cn(
             "absolute -bottom-[3px] left-0 right-0 h-[1.5px] origin-center",
-            isHome ? "bg-black" : "bg-accent"
+            isLight ? "bg-black" : "bg-accent"
           )}
           initial={false}
           transition={{
@@ -98,7 +102,7 @@ export const NavLink = ({ to, children, className, onClick, index }) => {
           animate={{
             scaleX: isHovered ? 1 : 0,
             backgroundColor: isHovered 
-              ? (isHome ? "rgba(0, 0, 0, 0.4)" : "rgba(255, 255, 255, 0.6)") 
+              ? (isLight ? "rgba(0, 0, 0, 0.4)" : "rgba(255, 255, 255, 0.6)") 
               : "rgba(255, 255, 255, 0)",
           }}
           transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}

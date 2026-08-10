@@ -5,7 +5,11 @@ import { cn } from "../../utils/cn";
 
 export const Wordmark = ({ className }) => {
   const location = useLocation();
-  const isHome = location.pathname === '/';
+  const isLight = location.pathname === '/' || 
+                  location.pathname.startsWith('/organizer') || 
+                  location.pathname === '/events' || 
+                  location.pathname === '/my-events' || 
+                  location.pathname === '/create-event';
   const easeOutQuart = [0.25, 1, 0.5, 1];
 
   return (
@@ -36,7 +40,7 @@ export const Wordmark = ({ className }) => {
           }}
           className={cn(
             "w-8 h-8 flex items-center justify-center rounded-[8px] transition-colors",
-            isHome ? "bg-black text-white" : "bg-white/10 text-white"
+            isLight ? "bg-black text-white" : "bg-white/10 text-white"
           )}
         >
           <svg
@@ -56,10 +60,10 @@ export const Wordmark = ({ className }) => {
 
         {/* Vertical subtle separator */}
         <motion.div 
-          className={cn("h-5 w-[1px] hidden sm:block", isHome ? "bg-black/15" : "bg-white/10")}
+          className={cn("h-5 w-[1px] hidden sm:block", isLight ? "bg-black/15" : "bg-white/10")}
           variants={{
             hover: {
-              backgroundColor: isHome ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 255, 255, 0.2)"
+              backgroundColor: isLight ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 255, 255, 0.2)"
             }
           }}
           transition={{
@@ -73,13 +77,13 @@ export const Wordmark = ({ className }) => {
           <motion.span
             variants={{
               hover: {
-                color: isHome ? "rgba(0, 0, 0, 1)" : "rgba(255, 255, 255, 1)"
+                color: isLight ? "rgba(0, 0, 0, 1)" : "rgba(255, 255, 255, 1)"
               }
             }}
             transition={{ duration: 0.22, ease: easeOutQuart }}
             className={cn(
               "font-ui text-[0.875rem] md:text-[0.9375rem] font-bold tracking-[0.18em] leading-none mb-1",
-              isHome ? "text-black" : "text-white/90"
+              isLight ? "text-black" : "text-white/90"
             )}
           >
             NOVAEVENT
@@ -87,7 +91,7 @@ export const Wordmark = ({ className }) => {
 
           <span className={cn(
             "text-[0.52rem] md:text-[0.56rem] tracking-[0.24em] font-technical uppercase leading-none opacity-90",
-            isHome ? "text-black/40" : "text-white/35"
+            isLight ? "text-black/40" : "text-white/35"
           )}>
             Plan. Host. Experience.
           </span>
